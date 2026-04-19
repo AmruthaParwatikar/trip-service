@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+
+  trip-service:
+    build: .
+    container_name: trip-service
+    ports:
+      - "3002:3002"
+    depends_on:
+      - driver-service
+      - payment-service
+
+  driver-service:
+    image: driver-service   # your teammate should build this
+    container_name: driver-service
+    ports:
+      - "3003:3003"
+
+  payment-service:
+    image: payment-service  # teammate will provide
+    container_name: payment-service
+    ports:
+      - "3004:3004"
