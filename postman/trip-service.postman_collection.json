@@ -1,0 +1,271 @@
+{
+  "info": {
+    "_postman_id": "a79d08a7-00b7-4df8-93ac-7bc6f6b14b28",
+    "name": "Trip Service",
+    "description": "Postman collection for the BITS ride-hailing Trip Service. Run Create Trip first, then Accept, Start, Complete, and report/payment lookup requests.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health Check",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('service is healthy', function () {",
+              "  pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "health"
+          ]
+        },
+        "description": "Checks whether the Trip Service is running."
+      }
+    },
+    {
+      "name": "Create Trip",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('trip created', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "const json = pm.response.json();",
+              "if (json.id) pm.collectionVariables.set('tripId', json.id);",
+              "if (json.driver_id) pm.collectionVariables.set('driverId', json.driver_id);",
+              "if (json.fare) pm.collectionVariables.set('tripFare', json.fare);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"rider_id\": {{riderId}},\n  \"pickup\": \"MG Road, Bengaluru\",\n  \"drop\": \"Indiranagar, Bengaluru\",\n  \"city\": \"{{city}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/v1/trips",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "trips"
+          ]
+        },
+        "description": "Creates a trip by asking Driver Service for an active driver in the requested city."
+      }
+    },
+    {
+      "name": "Get Trip By Id",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/v1/trips/{{tripId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "trips",
+            "{{tripId}}"
+          ]
+        },
+        "description": "Fetches the current trip state and fare details."
+      }
+    },
+    {
+      "name": "Get Trip Status",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/v1/trips/{{tripId}}/status",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "trips",
+            "{{tripId}}",
+            "status"
+          ]
+        },
+        "description": "Returns the trip status as plain text for Payment Service verification."
+      }
+    },
+    {
+      "name": "Accept Trip",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/v1/trips/{{tripId}}/accept",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "trips",
+            "{{tripId}}",
+            "accept"
+          ]
+        },
+        "description": "Moves the trip from REQUESTED to ACCEPTED."
+      }
+    },
+    {
+      "name": "Start Trip",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/v1/trips/{{tripId}}/start",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "trips",
+            "{{tripId}}",
+            "start"
+          ]
+        },
+        "description": "Moves the trip from ACCEPTED to ONGOING."
+      }
+    },
+    {
+      "name": "Complete Trip",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/v1/trips/{{tripId}}/complete",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "trips",
+            "{{tripId}}",
+            "complete"
+          ]
+        },
+        "description": "Completes an ONGOING trip and triggers Payment Service charge processing."
+      }
+    },
+    {
+      "name": "Cancel Trip",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/v1/trips/{{tripId}}/cancel",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "trips",
+            "{{tripId}}",
+            "cancel"
+          ]
+        },
+        "description": "Cancels a trip that has not started yet. Use this on a separate newly created trip."
+      }
+    },
+    {
+      "name": "Rider Trip Report",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/v1/trips/reports/riders/{{riderId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "trips",
+            "reports",
+            "riders",
+            "{{riderId}}"
+          ]
+        },
+        "description": "Returns rider trip history enriched with driver and payment details."
+      }
+    },
+    {
+      "name": "Driver Trip Report",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/v1/trips/reports/drivers/{{driverId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "trips",
+            "reports",
+            "drivers",
+            "{{driverId}}"
+          ]
+        },
+        "description": "Returns driver trip history enriched with rider and payment details."
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:3002"
+    },
+    {
+      "key": "riderId",
+      "value": "1"
+    },
+    {
+      "key": "driverId",
+      "value": "1"
+    },
+    {
+      "key": "tripId",
+      "value": "101"
+    },
+    {
+      "key": "tripFare",
+      "value": "248.50"
+    },
+    {
+      "key": "city",
+      "value": "Bengaluru"
+    }
+  ]
+}
