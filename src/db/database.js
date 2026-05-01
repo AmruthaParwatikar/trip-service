@@ -52,9 +52,22 @@ function paymentStatusForTrip(status, fare) {
   return 'PENDING';
 }
 
-function seedTripsFromCsv() {
+function numericValue(value) {
+  const number = Number.parseFloat(String(value || '').trim());
+  return Number.isFinite(number) ? number : null;
+}
+
+function ensureColumn(name, definition) {
+  db.run(`ALTER TABLE trips ADD COLUMN ${name} ${definition}`, (err) => {
+    if (err && !String(err.message).includes('duplicate column name')) {
+      throw err;
+    }
+  });
+}
+
+function readSeedRows() {
   if (!fs.existsSync(seedCsvPath)) {
-    return;
+    return [];
   }
 
   const lines = fs.readFileSync(seedCsvPath, 'utf8')
@@ -62,10 +75,64 @@ function seedTripsFromCsv() {
     .filter((line) => line.trim());
 
   if (lines.length <= 1) {
-    return;
+    return [];
   }
 
   const headers = parseCsvLine(lines[0]);
+  return lines.slice(1).map((line) => {
+    const values = parseCsvLine(line);
+    return Object.fromEntries(headers.map((header, index) => [header, values[index] ?? '']));
+  });
+}
+
+function locationParts(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .split(',')
+    .map((part) => part.replace(/^\d+\s+/, '').trim())
+    .filter(Boolean);
+}
+
+function normalizeLocation(value) {
+  return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function exactLocationMatches(input, candidate) {
+  return normalizeLocation(input) === normalizeLocation(candidate);
+}
+
+function locationMatches(input, candidate) {
+  const inputParts = locationParts(input);
+  const candidateParts = locationParts(candidate);
+
+  if (inputParts.length === 0 || candidateParts.length === 0) {
+    return false;
+  }
+
+  return inputParts.some((inputPart) => {
+    return candidateParts.some((candidatePart) => {
+      return inputPart.includes(candidatePart) || candidatePart.includes(inputPart);
+    });
+  });
+}
+
+function routeMatches(trip, seedRow) {
+  return locationMatches(trip.pickup, seedRow.pickup_location)
+    && locationMatches(trip.drop_location, seedRow.drop_location);
+}
+
+function exactRouteMatches(trip, seedRow) {
+  return exactLocationMatches(trip.pickup, seedRow.pickup_location)
+    && exactLocationMatches(trip.drop_location, seedRow.drop_location);
+}
+
+function seedTripsFromCsv() {
+  const rows = readSeedRows();
+  if (rows.length === 0) {
+    return;
+  }
+
   const insert = db.prepare(`
     INSERT OR IGNORE INTO trips (
       id,
@@ -76,14 +143,21 @@ function seedTripsFromCsv() {
       drop_location,
       fare,
       payment_status,
-      created_at
+      created_at,
+      city,
+      distance_km,
+      surge_multiplier,
+      base_fare
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      city = COALESCE(trips.city, excluded.city),
+      distance_km = COALESCE(trips.distance_km, excluded.distance_km),
+      surge_multiplier = COALESCE(trips.surge_multiplier, excluded.surge_multiplier),
+      base_fare = COALESCE(trips.base_fare, excluded.base_fare)
   `);
 
-  for (const line of lines.slice(1)) {
-    const values = parseCsvLine(line);
-    const row = Object.fromEntries(headers.map((header, index) => [header, values[index] ?? '']));
+  for (const row of rows) {
     const status = String(row.trip_status || 'REQUESTED').trim().toUpperCase();
     const fare = Number.parseFloat(row.fare_amount || '0') || 0;
 
@@ -96,11 +170,78 @@ function seedTripsFromCsv() {
       row.drop_location,
       fare,
       paymentStatusForTrip(status, fare),
-      normalizeTimestamp(row.requested_at)
+      normalizeTimestamp(row.requested_at),
+      row.city,
+      numericValue(row.distance_km),
+      numericValue(row.surge_multiplier),
+      numericValue(row.base_fare)
     ]);
   }
 
   insert.finalize();
+}
+
+function repairGeneratedTripFareFactors() {
+  const rows = readSeedRows();
+  if (rows.length === 0) {
+    return;
+  }
+
+  const maxSeedTripId = rows.reduce((max, row) => {
+    const tripId = Number.parseInt(String(row.trip_id || '').trim(), 10);
+    return Number.isFinite(tripId) ? Math.max(max, tripId) : max;
+  }, 0);
+
+  db.all(
+    `
+      SELECT *
+      FROM trips
+      WHERE (
+          id <> ''
+          AND id NOT GLOB '*[^0-9]*'
+          AND CAST(id AS INTEGER) > ?
+        )
+        OR (
+          (distance_km IS NULL OR surge_multiplier IS NULL OR base_fare IS NULL)
+          AND fare <= 120
+        )
+    `,
+    [maxSeedTripId],
+    (err, trips) => {
+      if (err) {
+        throw err;
+      }
+
+      const update = db.prepare(`
+        UPDATE trips
+        SET fare = ?,
+            distance_km = ?,
+            surge_multiplier = ?,
+            base_fare = ?
+        WHERE id = ?
+      `);
+
+      for (const trip of trips || []) {
+        const exactMatch = rows.find((row) => exactRouteMatches(trip, row));
+        const weakFare = !numericValue(trip.distance_km)
+          || !numericValue(trip.surge_multiplier)
+          || !numericValue(trip.base_fare)
+          || Number(trip.fare || 0) <= 120;
+        const match = exactMatch || (weakFare ? rows.find((row) => routeMatches(trip, row)) : null);
+        if (!match) continue;
+
+        update.run([
+          numericValue(match.fare_amount) || trip.fare,
+          numericValue(match.distance_km),
+          numericValue(match.surge_multiplier),
+          numericValue(match.base_fare),
+          trip.id
+        ]);
+      }
+
+      update.finalize();
+    }
+  );
 }
 
 db.serialize(() => {
@@ -117,7 +258,12 @@ db.serialize(() => {
       created_at TEXT
     )
   `);
+  ensureColumn('city', 'TEXT');
+  ensureColumn('distance_km', 'REAL');
+  ensureColumn('surge_multiplier', 'REAL');
+  ensureColumn('base_fare', 'REAL');
   seedTripsFromCsv();
+  repairGeneratedTripFareFactors();
 });
 
 module.exports = db;

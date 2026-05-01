@@ -3,7 +3,22 @@ const db = require('../db/database');
 exports.createTrip = (trip) => {
   return new Promise((resolve, reject) => {
     const query = `
-      INSERT INTO trips VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO trips (
+        id,
+        rider_id,
+        driver_id,
+        status,
+        pickup,
+        drop_location,
+        fare,
+        payment_status,
+        created_at,
+        city,
+        distance_km,
+        surge_multiplier,
+        base_fare
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
     db.run(
       query,
@@ -16,11 +31,44 @@ exports.createTrip = (trip) => {
         trip.drop,
         trip.fare,
         trip.payment_status,
-        trip.created_at
+        trip.created_at,
+        trip.city || null,
+        trip.distance_km || null,
+        trip.surge_multiplier || null,
+        trip.base_fare || null
       ],
       (err) => {
         if (err) reject(err);
         else resolve(trip);
+      }
+    );
+  });
+};
+
+exports.listFareReferenceTrips = () => {
+  return new Promise((resolve, reject) => {
+    db.all(
+      `
+        SELECT
+          id,
+          rider_id,
+          status,
+          city,
+          pickup,
+          drop_location,
+          fare,
+          distance_km,
+          surge_multiplier,
+          base_fare,
+          created_at
+        FROM trips
+        WHERE fare > 0
+        ORDER BY created_at DESC
+      `,
+      [],
+      (err, rows) => {
+        if (err) reject(err);
+        else resolve(rows || []);
       }
     );
   });
