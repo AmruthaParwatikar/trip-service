@@ -1,0 +1,84 @@
+openapi: 3.0.0
+info:
+  title: Trip Service API
+  version: 1.0.0
+  description: API for managing trip lifecycle in ride-hailing system
+
+servers:
+  - url: http://localhost:3002
+
+paths:
+
+  /v1/trips:
+    post:
+      summary: Create a new trip
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                rider_id:
+                  type: integer
+                pickup:
+                  type: string
+                drop:
+                  type: string
+                city:
+                  type: string
+      responses:
+        '200':
+          description: Trip created
+
+  /v1/trips/{id}:
+    get:
+      summary: Get trip by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Trip details
+
+  /v1/trips/{id}/accept:
+    post:
+      summary: Accept trip
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Trip accepted
+
+  /v1/trips/{id}/start:
+    post:
+      summary: Start trip
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Trip started
+
+  /v1/trips/{id}/complete:
+    post:
+      summary: Complete trip and trigger payment
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Trip completed
