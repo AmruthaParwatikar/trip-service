@@ -50,7 +50,7 @@ http://localhost:3002/v1/trips
 - Table: `trips`
 
 ### Schema:
-- id (UUID)
+- id (numeric Trip Service ID stored as text for compatibility with seeded data)
 - rider_id
 - driver_id
 - status

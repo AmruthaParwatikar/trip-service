@@ -37,6 +37,41 @@
       }
     },
     {
+      "name": "Metrics Snapshot",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/metrics",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "metrics"
+          ]
+        },
+        "description": "Returns Trip Service request, status, CPU, and memory metrics as JSON."
+      }
+    },
+    {
+      "name": "Prometheus Metrics",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/metrics/prometheus",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "metrics",
+            "prometheus"
+          ]
+        },
+        "description": "Returns Trip Service metrics in Prometheus exposition format."
+      }
+    },
+    {
       "name": "Create Trip",
       "event": [
         {
